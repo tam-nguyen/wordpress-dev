@@ -8,11 +8,28 @@
 if ( ! class_exists( 'QM_Dispatcher' ) ) {
 abstract class QM_Dispatcher {
 
+	/**
+	 * Outputter instances.
+	 *
+	 * @var QM_Output[] Array of outputters.
+	 */
+	protected $outputters = array();
+
+	/**
+	 * Query Monitor plugin instance.
+	 *
+	 * @var QM_Plugin Plugin instance.
+	 */
+	protected $qm;
+
 	public function __construct( QM_Plugin $qm ) {
 		$this->qm = $qm;
 
 		if ( ! defined( 'QM_COOKIE' ) ) {
 			define( 'QM_COOKIE', 'wp-query_monitor_' . COOKIEHASH );
+		}
+		if ( ! defined( 'QM_EDITOR_COOKIE' ) ) {
+			define( 'QM_EDITOR_COOKIE', 'wp-query_monitor_editor_' . COOKIEHASH );
 		}
 
 		add_action( 'init', array( $this, 'init' ) );
@@ -26,7 +43,7 @@ abstract class QM_Dispatcher {
 		$e = error_get_last();
 
 		# Don't dispatch if a fatal has occurred:
-		if ( ! empty( $e ) && ( $e['type'] & ( E_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR ) ) ) {
+		if ( ! empty( $e ) && ( $e['type'] & QM_ERROR_FATALS ) ) {
 			return false;
 		}
 
@@ -47,6 +64,12 @@ abstract class QM_Dispatcher {
 
 	}
 
+	/**
+	 * Processes and fetches the outputters for this dispatcher.
+	 *
+	 * @param string $outputter_id The outputter ID.
+	 * @return QM_Output[] Array of outputters.
+	 */
 	public function get_outputters( $outputter_id ) {
 		$collectors = QM_Collectors::init();
 		$collectors->process();
@@ -67,7 +90,7 @@ abstract class QM_Dispatcher {
 	}
 
 	public function init() {
-		if ( ! $this->user_can_view() ) {
+		if ( ! self::user_can_view() ) {
 			return;
 		}
 
@@ -86,7 +109,7 @@ abstract class QM_Dispatcher {
 		// nothing
 	}
 
-	public function user_can_view() {
+	public static function user_can_view() {
 
 		if ( ! did_action( 'plugins_loaded' ) ) {
 			return false;
@@ -101,10 +124,17 @@ abstract class QM_Dispatcher {
 	}
 
 	public static function user_verified() {
-		if ( isset( $_COOKIE[QM_COOKIE] ) ) { // @codingStandardsIgnoreLine
-			return self::verify_cookie( wp_unslash( $_COOKIE[QM_COOKIE] ) ); // @codingStandardsIgnoreLine
+		if ( isset( $_COOKIE[QM_COOKIE] ) ) { // phpcs:ignore
+			return self::verify_cookie( wp_unslash( $_COOKIE[QM_COOKIE] ) ); // phpcs:ignore
 		}
 		return false;
+	}
+
+	public static function editor_cookie() {
+		if ( defined( 'QM_EDITOR_COOKIE' ) && isset( $_COOKIE[QM_EDITOR_COOKIE] ) ) { // phpcs:ignore
+			return $_COOKIE[QM_EDITOR_COOKIE]; // phpcs:ignore
+		}
+		return '';
 	}
 
 	public static function verify_cookie( $value ) {
